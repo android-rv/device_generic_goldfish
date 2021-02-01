@@ -1,4 +1,6 @@
 #!/usr/bin/python
+
+import codecs
 import sys
 import os
 from subprocess import Popen, PIPE
@@ -11,7 +13,7 @@ def check_sparse(filename):
     magic = 3978755898
     with open(filename, 'rb') as i:
         word = i.read(4)
-        if magic == int(word[::-1].encode('hex'), 16):
+        if magic == int(codecs.encode(word[::-1], 'hex'), 16):
             return True
     return False
 
@@ -45,18 +47,18 @@ def parse_input(input_file):
         try:
             partition_info["num"] = int(line[2])
         except ValueError:
-            print "'%s' cannot be converted to int" % (line[2])
+            print("'%s' cannot be converted to int" % (line[2]))
             sys.exit(1)
 
         # check if the partition number is out of range
         if partition_info["num"] > len(lines) or partition_info["num"] < 0:
-            print "Invalid partition number: %d, range [1..%d]" % \
-                    (partition_info["num"], len(lines))
+            print("Invalid partition number: %d, range [1..%d]" % \
+                  (partition_info["num"], len(lines)))
             sys.exit(1)
 
         # check if the partition number is duplicated
         if partition_info["num"] in num_used:
-            print "Duplicated partition number:%d" % (partition["num"])
+            print("Duplicated partition number:%d" % (partition_info["num"]))
             sys.exit(1)
         num_used.add(partition_info["num"])
         partitions.append(partition_info)
@@ -75,16 +77,16 @@ def write_partition(partition, output_file, offset):
 def unsparse_partition(partition):
     # if the input image is in sparse format, unsparse it
     simg2img = os.environ.get('SIMG2IMG', 'simg2img')
-    print "Unsparsing %s" % (partition["path"]),
+    print("Unsparsing %s" % (partition["path"]))
     partition["fd"], temp_file = mkstemp()
     shell_command([simg2img, partition["path"], temp_file])
     partition["path"] = temp_file
-    print "Done"
+    print("Done")
     return
 
 def clear_partition_table(filename):
     sgdisk = os.environ.get('SGDISK', 'sgdisk')
-    print "%s --clear %s" % (sgdisk, filename)
+    print("%s --clear %s" % (sgdisk, filename))
     shell_command([sgdisk, '--clear', filename])
     return
 
@@ -116,7 +118,7 @@ def main():
     # check input file
     config_filename = args.input
     if not os.path.exists(config_filename):
-        print "Invalid config file name " + config_filename
+        print("Invalid config file name " + config_filename)
         sys.exit(1)
 
     # read input file
@@ -130,21 +132,21 @@ def main():
 
     for partition in partitions:
         offset = os.path.getsize(output_filename)
-        partition["start"] = str(offset / 512)
+        partition["start"] = str(offset // 512)
         # dectect sparse file format
         if check_sparse(partition["path"]):
             unsparse_partition(partition)
 
         # TODO: extract the partition if the image file is already formatted
 
-        write_partition(partition, output_filename, offset/1024/1024)
+        write_partition(partition, output_filename, offset // 1024 // 1024)
         offset = os.path.getsize(output_filename)
-        partition["end"] = str(offset / 512 - 1)
+        partition["end"] = str(offset // 512 - 1)
 
     # add padding
     # $ dd if=/dev/zero of=/path/to/output conv=notrunc bs=1 \
     #   count=1024k seek=<offset>
-    offset = os.path.getsize(output_filename) / 1024 / 1024
+    offset = os.path.getsize(output_filename) // 1024 // 1024
     shell_command(['dd', 'if=/dev/zero', 'of='+output_filename,
                 'conv=notrunc', 'bs=1024k', 'count=1', 'seek='+str(offset)])
 
